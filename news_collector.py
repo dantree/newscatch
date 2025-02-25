@@ -10,29 +10,35 @@ from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.chrome.service import Service
 from webdriver_manager.chrome import ChromeDriverManager
 from selenium.webdriver.chrome.options import Options
+import os
 
 # 텔레그램 설정
-TELEGRAM_TOKEN = "7873086292:AAEthtBcUFopzyKY5a3UPBlGdNzP5BrDBIM"
-CHAT_ID = "7882172599"
+TELEGRAM_TOKEN = os.environ.get('TELEGRAM_TOKEN')
+CHAT_ID = os.environ.get('CHAT_ID')
 
 # 뉴스 카테고리 및 검색 키워드 설정
 NEWS_CATEGORIES = {
     'LLM/AI': {
         'urls': [
-            # 네이버 뉴스만 우선 사용
-            'https://search.naver.com/search.naver?where=news&query=AI+인공지능+ChatGPT&sort=1&pd=4',
+            # 네이버 뉴스 - 다양한 검색어로 시도
+            'https://search.naver.com/search.naver?where=news&query=인공지능+AI+신규+출시+발표&sort=1&pd=4',
+            'https://search.naver.com/search.naver?where=news&query=AI+모델+LLM+새로운&sort=1&pd=4',
+            'https://search.naver.com/search.naver?where=news&query=생성형+AI+대형언어모델+발표&sort=1&pd=4',
+            'https://search.naver.com/search.naver?where=news&query=AI+기업+신제품+출시&sort=1&pd=4'
         ],
         'selectors': {
             'naver': {
                 'article': '.news_wrap',
                 'title': '.news_tit',
                 'link': '.news_tit',
-                'time': '.info_group span:nth-child(3)'
+                'time': '.info_group span:nth-child(3)',
+                'press': '.info_group a.press'
             }
         },
         'keywords': [
-            'GPT', 'AI', '인공지능', 'LLM', 'Claude', 'Gemini',
-            'ChatGPT', '생성형', '챗봇', '머신러닝', '딥러닝'
+            'AI', '인공지능', 'LLM', '언어모델', '생성형',
+            '출시', '발표', '공개', '새로운', '신규',
+            '버전', '업데이트', '개선', '발전'
         ]
     }
 }
@@ -60,19 +66,14 @@ class NewsCollector:
                         self.driver.get(url)
                         await asyncio.sleep(2)
                         
-                        # URL에 따른 셀렉터 선택
-                        selector_key = 'naver' if 'naver.com' in url else \
-                                     'daum' if 'daum.net' in url else \
-                                     'aitimes' if 'aitimes.com' in url else 'naver'
-                        
-                        selectors = url_or_config['selectors'][selector_key]
+                        selectors = url_or_config['selectors']['naver']
                         wait = WebDriverWait(self.driver, 10)
                         articles = wait.until(EC.presence_of_all_elements_located(
                             (By.CSS_SELECTOR, selectors['article'])
                         ))
                         
-                        # LLM/AI 뉴스는 10개까지 수집
-                        for article in articles[:15]:  # 여유있게 15개 검사
+                        # 모든 뉴스는 10개까지 수집
+                        for article in articles[:20]:  # 여유있게 20개 검사
                             try:
                                 title_element = article.find_element(By.CSS_SELECTOR, selectors['title'])
                                 title = title_element.get_attribute('title') or title_element.text
@@ -85,9 +86,7 @@ class NewsCollector:
                                 except:
                                     pass
 
-                                source = 'NAVER' if 'naver.com' in url else \
-                                        'DAUM' if 'daum.net' in url else \
-                                        'AI타임스' if 'aitimes.com' in url else ''
+                                source = 'NAVER' if 'naver.com' in url else ''
                                 
                                 if title and link and any(keyword.lower() in title.lower() for keyword in url_or_config['keywords']):
                                     title_with_time = f"[{source}] {title}"
@@ -99,6 +98,9 @@ class NewsCollector:
                                         'title': title_with_time,
                                         'link': link
                                     })
+                                    
+                                    if len(all_news) >= 10:  # 10개 수집되면 중단
+                                        break
                             except Exception as e:
                                 print(f"기사 파싱 중 에러: {e}")
                                 continue
