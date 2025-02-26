@@ -137,7 +137,11 @@ class NewsCollector:
         await self.bot.send_message(chat_id=CHAT_ID, text=message, parse_mode='HTML')
 
     async def collect_and_send(self):
-        today = datetime.now().strftime('%Y년 %m월 %d일')
+        # KST 기준으로 날짜 설정
+        kst = datetime.now() + timedelta(hours=9)  # UTC to KST
+        today = kst.strftime('%Y년 %m월 %d일')
+        current_date = kst.strftime('%Y.%m.%d')
+        
         full_message = f"📰 {today} 뉴스 요약\n\n"
         
         # AI 뉴스 수집
@@ -168,7 +172,7 @@ class NewsCollector:
 
     async def get_popular_news(self):
         try:
-            # 각 언론사별 URL
+            # 각 언론사별 URL (동일)
             press_urls = {
                 '연합뉴스': 'https://news.naver.com/main/list.naver?mode=LSD&mid=sec&sid1=001&listType=summary&oid=001',
                 'KBS': 'https://news.naver.com/main/list.naver?mode=LSD&mid=sec&sid1=001&listType=summary&oid=056',
@@ -176,6 +180,10 @@ class NewsCollector:
                 'YTN': 'https://news.naver.com/main/list.naver?mode=LSD&mid=sec&sid1=001&listType=summary&oid=052',
                 'JTBC': 'https://news.naver.com/main/list.naver?mode=LSD&mid=sec&sid1=001&listType=summary&oid=437'
             }
+            
+            # KST 기준 현재 날짜
+            kst = datetime.now() + timedelta(hours=9)
+            current_date = kst.strftime('%Y.%m.%d')
             
             popular_news = "📰 주요 방송사 뉴스\n\n"
             
@@ -192,11 +200,18 @@ class NewsCollector:
                             (By.CSS_SELECTOR, selector)
                         )))
                     
-                    # 각 언론사별 최신 5개 텍스트 기사 수집
-                    popular_news += f"[{press}]\n"  # 언론사 제목 추가
+                    # 각 언론사별 최신 10개 텍스트 기사 수집
+                    popular_news += f"[{press}]\n"
                     news_count = 0
+                    
                     for article in articles:
                         try:
+                            # 날짜 확인
+                            date_element = article.find_element(By.CSS_SELECTOR, '.date')
+                            article_date = date_element.text.strip()
+                            if current_date not in article_date:
+                                continue
+                            
                             # 동영상 기사 제외
                             if '동영상' in article.text:
                                 continue
@@ -210,13 +225,13 @@ class NewsCollector:
                                 popular_news += f"• <a href='{link}'>{title}</a>\n"
                                 news_count += 1
                                 
-                                if news_count >= 5:  # 5개 수집하면 중단
+                                if news_count >= 10:  # 10개로 제한
                                     break
                                     
                         except Exception as e:
                             continue
                     
-                    popular_news += "\n"  # 언론사 구분을 위한 빈 줄
+                    popular_news += "\n"
                     
                 except Exception as e:
                     continue
