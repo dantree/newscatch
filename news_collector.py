@@ -203,6 +203,7 @@ class NewsCollector:
                     # 각 언론사별 최신 10개 기사 수집
                     popular_news += f"[{press}]\n"
                     news_count = 0
+                    collected_titles = set()  # 중복 제거를 위한 set
                     
                     for article in articles:
                         try:
@@ -211,11 +212,16 @@ class NewsCollector:
                             title = title_element.text.strip()
                             link = title_element.get_attribute('href')
                             
+                            # 중복 기사 건너뛰기
+                            if title in collected_titles:
+                                continue
+                                
                             if title and link:
                                 # HTML 특수문자 처리
                                 title = title.replace('<', '&lt;').replace('>', '&gt;')
                                 popular_news += f"• <a href='{link}'>{title}</a>\n"
                                 news_count += 1
+                                collected_titles.add(title)  # 제목 추가
                                 
                                 if news_count >= 10:
                                     break
