@@ -1,5 +1,7 @@
 requests
 beautifulsoup4
 python-telegram-bot
+selenium
+webdriver-manager
 pandas
 konlpy 
