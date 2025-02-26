@@ -13,8 +13,8 @@ from selenium.webdriver.chrome.options import Options
 import os
 
 # 텔레그램 설정
-TELEGRAM_TOKEN = os.environ.get('TELEGRAM_TOKEN')
-CHAT_ID = os.environ.get('CHAT_ID')
+TELEGRAM_TOKEN = os.environ.get('TELEGRAM_TOKEN', '7873086292:AAEthtBcUFopzyKY5a3UPBlGdNzP5BrDBIM')
+CHAT_ID = os.environ.get('CHAT_ID', '7882172599')
 
 # 뉴스 카테고리 및 검색 키워드 설정
 NEWS_CATEGORIES = {
@@ -59,7 +59,7 @@ class NewsCollector:
     async def get_news(self, url_or_config):
         try:
             if isinstance(url_or_config, dict):
-                all_news = []
+                all_news = set()  # 중복 제거를 위해 set 사용
                 
                 for url in url_or_config['urls']:
                     try:
@@ -72,8 +72,7 @@ class NewsCollector:
                             (By.CSS_SELECTOR, selectors['article'])
                         ))
                         
-                        # 모든 뉴스는 10개까지 수집
-                        for article in articles[:20]:  # 여유있게 20개 검사
+                        for article in articles:
                             try:
                                 title_element = article.find_element(By.CSS_SELECTOR, selectors['title'])
                                 title = title_element.get_attribute('title') or title_element.text
@@ -86,29 +85,30 @@ class NewsCollector:
                                 except:
                                     pass
 
-                                source = 'NAVER' if 'naver.com' in url else ''
-                                
                                 if title and link and any(keyword.lower() in title.lower() for keyword in url_or_config['keywords']):
-                                    title_with_time = f"[{source}] {title}"
+                                    title_with_time = f"[NAVER] {title}"
                                     if time_text:
-                                        title_with_time = f"[{source}/{time_text}] {title}"
+                                        title_with_time = f"[NAVER/{time_text}] {title}"
                                     
-                                    print(f"Found news: {title_with_time}")
-                                    all_news.append({
-                                        'title': title_with_time,
-                                        'link': link
-                                    })
+                                    # 중복 제거를 위해 링크를 기준으로 추가
+                                    all_news.add((title_with_time, link))
                                     
-                                    if len(all_news) >= 10:  # 10개 수집되면 중단
+                                    if len(all_news) >= 10:
                                         break
+                                        
                             except Exception as e:
                                 print(f"기사 파싱 중 에러: {e}")
                                 continue
+                                
+                        if len(all_news) >= 10:
+                            break
+                            
                     except Exception as e:
-                        print(f"URL 처리 중 에러 ({url}): {e}")
+                        print(f"URL 처리 중 에러: {e}")
                         continue
                 
-                return all_news[:10]  # 최대 10개 반환
+                # set을 list로 변환하고 최신 10개 반환
+                return [{'title': title, 'link': link} for title, link in list(all_news)[:10]]
             else:  # 다른 카테고리의 경우
                 self.driver.get(url_or_config)
                 wait = WebDriverWait(self.driver, 10)
