@@ -151,8 +151,8 @@ class NewsCollector:
                 if news_list:
                     full_message += f"━━━ {category} ━━━\n\n"
                     for idx, news in enumerate(news_list, 1):
-                        title = news['title'].replace('<', '').replace('>', '')
-                        # 링크를 제목에 포함
+                        # HTML 특수문자 처리
+                        title = news['title'].replace('<', '&lt;').replace('>', '&gt;')
                         full_message += f"{idx}. <a href='{news['link']}'>{title}</a>\n"
                     full_message += "\n"
             except Exception as e:
@@ -163,16 +163,11 @@ class NewsCollector:
         popular_news = await self.get_popular_news()
         full_message += f"\n{popular_news}"
         
-        # 메시지 길이 제한
-        if len(full_message) > 4000:
-            full_message = full_message[:4000] + "\n\n... (더 많은 뉴스가 있습니다)"
-        
-        # HTML 모드 다시 활성화
         await self.bot.send_message(chat_id=CHAT_ID, text=full_message, parse_mode='HTML')
 
     async def get_popular_news(self):
         try:
-            # 각 언론사별 URL (동일)
+            # 각 언론사별 URL
             press_urls = {
                 '연합뉴스': 'https://news.naver.com/main/list.naver?mode=LSD&mid=sec&sid1=001&listType=summary&oid=001',
                 'KBS': 'https://news.naver.com/main/list.naver?mode=LSD&mid=sec&sid1=001&listType=summary&oid=056',
@@ -181,51 +176,48 @@ class NewsCollector:
                 'JTBC': 'https://news.naver.com/main/list.naver?mode=LSD&mid=sec&sid1=001&listType=summary&oid=437'
             }
             
-            # KST 기준 현재 날짜
-            kst = datetime.now() + timedelta(hours=9)
-            current_date = kst.strftime('%Y.%m.%d')
-            
             popular_news = "📰 주요 방송사 뉴스\n\n"
             
             for press, url in press_urls.items():
                 try:
+                    print(f"Collecting news from {press}...")
                     self.driver.get(url)
-                    await asyncio.sleep(1)
-                    wait = WebDriverWait(self.driver, 10)
+                    await asyncio.sleep(3)
                     
-                    # 모든 기사 목록 가져오기
-                    articles = []
-                    for selector in ['.type06_headline li', '.type06 li']:
-                        articles.extend(wait.until(EC.presence_of_all_elements_located(
-                            (By.CSS_SELECTOR, selector)
-                        )))
+                    # 기사 목록 가져오기 - MBC용 셀렉터 추가
+                    if press == 'MBC':
+                        # 페이지 로딩 완료 대기
+                        wait = WebDriverWait(self.driver, 10)
+                        wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, '#main_content .list_body')))
+                        articles = self.driver.find_elements(By.CSS_SELECTOR, '#main_content .list_body .type06_headline li, #main_content .list_body .type06 li')
+                    else:
+                        articles = self.driver.find_elements(By.CSS_SELECTOR, '.type06_headline li, .type06 li')
                     
-                    # 각 언론사별 최신 10개 텍스트 기사 수집
+                    if len(articles) < 10:
+                        print(f"Warning: {press}에서 {len(articles)}개의 기사만 찾았습니다.")
+                        # 디버깅을 위한 페이지 소스 출력
+                        if press == 'MBC':
+                            print("MBC 페이지 구조:")
+                            print(self.driver.page_source[:500])  # 처음 500자만 출력
+                    
+                    # 각 언론사별 최신 10개 기사 수집
                     popular_news += f"[{press}]\n"
                     news_count = 0
                     
                     for article in articles:
                         try:
-                            # 날짜 확인
-                            date_element = article.find_element(By.CSS_SELECTOR, '.date')
-                            article_date = date_element.text.strip()
-                            if current_date not in article_date:
-                                continue
-                            
-                            # 동영상 기사 제외
-                            if '동영상' in article.text:
-                                continue
-                                
+                            # 동영상 필터링 제거
                             title_element = article.find_element(By.CSS_SELECTOR, 'dt:not(.photo) > a')
                             title = title_element.text.strip()
                             link = title_element.get_attribute('href')
                             
                             if title and link:
-                                title = title.replace('<', '').replace('>', '')
+                                # HTML 특수문자 처리
+                                title = title.replace('<', '&lt;').replace('>', '&gt;')
                                 popular_news += f"• <a href='{link}'>{title}</a>\n"
                                 news_count += 1
                                 
-                                if news_count >= 10:  # 10개로 제한
+                                if news_count >= 10:
                                     break
                                     
                         except Exception as e:
@@ -234,6 +226,7 @@ class NewsCollector:
                     popular_news += "\n"
                     
                 except Exception as e:
+                    print(f"Error collecting news from {press}: {e}")
                     continue
             
             return popular_news
