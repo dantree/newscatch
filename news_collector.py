@@ -14,7 +14,8 @@ import os
 
 # 텔레그램 설정
 TELEGRAM_TOKEN = os.environ.get('TELEGRAM_TOKEN', '7873086292:AAEthtBcUFopzyKY5a3UPBlGdNzP5BrDBIM')
-CHAT_ID = os.environ.get('CHAT_ID', '7882172599')
+PERSONAL_CHAT_ID = os.environ.get('PERSONAL_CHAT_ID', '7882172599')  # 개인 채팅 ID
+CHANNEL_CHAT_ID = os.environ.get('CHANNEL_CHAT_ID', '-1002303882674')  # 채널 ID
 
 # 뉴스 카테고리 및 검색 키워드 설정
 NEWS_CATEGORIES = {
@@ -122,7 +123,6 @@ class NewsCollector:
                         link = title_element.get_attribute('href')
                         
                         if title and link:
-                            print(f"Found news: {title}")
                             news_list.append({'title': title, 'link': link})
                     except Exception as e:
                         print(f"개별 뉴스 파싱 중 에러: {e}")
@@ -134,13 +134,14 @@ class NewsCollector:
             return []
 
     async def send_telegram_message(self, message):
-        await self.bot.send_message(chat_id=CHAT_ID, text=message, parse_mode='HTML')
+        # 두 채팅방 모두에 메시지 전송
+        await self.bot.send_message(chat_id=PERSONAL_CHAT_ID, text=message, parse_mode='HTML')
+        await self.bot.send_message(chat_id=CHANNEL_CHAT_ID, text=message, parse_mode='HTML')
 
     async def collect_and_send(self):
         # KST 기준으로 날짜 설정
         kst = datetime.now() + timedelta(hours=9)  # UTC to KST
         today = kst.strftime('%Y년 %m월 %d일')
-        current_date = kst.strftime('%Y.%m.%d')
         
         full_message = f"📰 {today} 뉴스 요약\n\n"
         
@@ -163,7 +164,9 @@ class NewsCollector:
         popular_news = await self.get_popular_news()
         full_message += f"\n{popular_news}"
         
-        await self.bot.send_message(chat_id=CHAT_ID, text=full_message, parse_mode='HTML')
+        # 두 채팅방 모두에 메시지 전송
+        await self.bot.send_message(chat_id=PERSONAL_CHAT_ID, text=full_message, parse_mode='HTML')
+        await self.bot.send_message(chat_id=CHANNEL_CHAT_ID, text=full_message, parse_mode='HTML')
 
     async def get_popular_news(self):
         try:
@@ -186,19 +189,11 @@ class NewsCollector:
                     
                     # 기사 목록 가져오기 - MBC용 셀렉터 추가
                     if press == 'MBC':
-                        # 페이지 로딩 완료 대기
                         wait = WebDriverWait(self.driver, 10)
                         wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, '#main_content .list_body')))
                         articles = self.driver.find_elements(By.CSS_SELECTOR, '#main_content .list_body .type06_headline li, #main_content .list_body .type06 li')
                     else:
                         articles = self.driver.find_elements(By.CSS_SELECTOR, '.type06_headline li, .type06 li')
-                    
-                    if len(articles) < 10:
-                        print(f"Warning: {press}에서 {len(articles)}개의 기사만 찾았습니다.")
-                        # 디버깅을 위한 페이지 소스 출력
-                        if press == 'MBC':
-                            print("MBC 페이지 구조:")
-                            print(self.driver.page_source[:500])  # 처음 500자만 출력
                     
                     # 각 언론사별 최신 10개 기사 수집
                     popular_news += f"[{press}]\n"
@@ -207,7 +202,6 @@ class NewsCollector:
                     
                     for article in articles:
                         try:
-                            # 동영상 필터링 제거
                             title_element = article.find_element(By.CSS_SELECTOR, 'dt:not(.photo) > a')
                             title = title_element.text.strip()
                             link = title_element.get_attribute('href')
@@ -239,48 +233,6 @@ class NewsCollector:
         except Exception as e:
             print(f"주요 뉴스 수집 중 에러: {e}")
             return "주요 뉴스를 가져올 수 없습니다.\n"
-
-    async def get_google_news(self):
-        try:
-            url = "https://news.google.com/search?q=AI%20LLM%20GPT%20when:1d&hl=ko&gl=KR"
-            self.driver.get(url)
-            wait = WebDriverWait(self.driver, 10)
-            
-            # 페이지 로드 대기
-            await asyncio.sleep(3)
-            
-            # 구글 뉴스 목록 가져오기
-            articles = wait.until(EC.presence_of_all_elements_located(
-                (By.CSS_SELECTOR, 'article.MQsxIb.xTewfe.R7GTQ.keNKEd.j7vNaf.Cc0Z5d.EjqUne')
-            ))
-            
-            google_news = "🌏 해외 AI 뉴스\n\n"
-            
-            for idx, article in enumerate(articles[:10], 1):
-                try:
-                    title_element = article.find_element(By.CSS_SELECTOR, 'a.DY5T1d.RZIKme')
-                    title = title_element.text
-                    link = title_element.get_attribute('href')
-                    
-                    if title and link:
-                        # 영어 기사만 필터링 (선택사항)
-                        if any(c.isascii() for c in title):
-                            google_news += f"{idx}. <a href='{link}'>{title}</a>\n"
-                except Exception as e:
-                    print(f"구글 뉴스 파싱 중 에러: {e}")
-                    continue
-            
-            google_news += "\n"
-            return google_news
-        except Exception as e:
-            print(f"구글 뉴스 수집 중 에러: {e}")
-            print(f"에러 상세: {str(e)}")
-            try:
-                print("\nPage source:")
-                print(self.driver.page_source[:1000])  # 페이지 소스 출력
-            except:
-                pass
-            return "해외 뉴스를 가져올 수 없습니다.\n"
 
     def __del__(self):
         if hasattr(self, 'driver'):
