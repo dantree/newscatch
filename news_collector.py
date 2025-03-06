@@ -14,7 +14,7 @@ import os
 
 # 텔레그램 설정
 TELEGRAM_TOKEN = os.environ.get('TELEGRAM_TOKEN', '7873086292:AAEthtBcUFopzyKY5a3UPBlGdNzP5BrDBIM')
-PERSONAL_CHAT_ID = os.environ.get('PERSONAL_CHAT_ID', '7882172599')  # 개인 채팅 ID
+# PERSONAL_CHAT_ID = os.environ.get('PERSONAL_CHAT_ID', '7882172599')  # 개인 채팅 ID (주석 처리)
 CHANNEL_CHAT_ID = os.environ.get('CHANNEL_CHAT_ID', '-1002303882674')  # 채널 ID
 
 # 뉴스 카테고리 및 검색 키워드 설정
@@ -134,8 +134,8 @@ class NewsCollector:
             return []
 
     async def send_telegram_message(self, message):
-        # 두 채팅방 모두에 메시지 전송
-        await self.bot.send_message(chat_id=PERSONAL_CHAT_ID, text=message, parse_mode='HTML')
+        # 채널에만 메시지 전송 (개인 채팅 주석 처리)
+        # await self.bot.send_message(chat_id=PERSONAL_CHAT_ID, text=message, parse_mode='HTML')
         await self.bot.send_message(chat_id=CHANNEL_CHAT_ID, text=message, parse_mode='HTML')
 
     async def collect_and_send(self):
@@ -164,8 +164,8 @@ class NewsCollector:
         popular_news = await self.get_popular_news()
         full_message += f"\n{popular_news}"
         
-        # 두 채팅방 모두에 메시지 전송
-        await self.bot.send_message(chat_id=PERSONAL_CHAT_ID, text=full_message, parse_mode='HTML')
+        # 채널에만 메시지 전송 (개인 채팅 주석 처리)
+        # await self.bot.send_message(chat_id=PERSONAL_CHAT_ID, text=full_message, parse_mode='HTML')
         await self.bot.send_message(chat_id=CHANNEL_CHAT_ID, text=full_message, parse_mode='HTML')
 
     async def get_popular_news(self):
